@@ -1,0 +1,564 @@
+---
+title: "Leaflet población del mundo"
+date: "`r format(Sys.time(), '%d-%m-%Y')`"
+author: "Diana Villasana Ocampo"
+output:
+   html_document:
+      code_folding: hide
+      highlight: tango
+      theme: flatly
+      toc: true
+      toc_depth: 4
+      toc_float:
+        collapsed: yes
+knit: (function(input, ...) {
+    rmarkdown::render(
+      input,
+      output_dir = "../Output"
+    )
+  })
+---
+
+\usepackage{color}
+\color{#B6854D}{\text{}}{-}
+
+```{=html}
+<style type="text/css">
+body {
+text-align: justify;
+font-style: normal;
+font-family: "Montserrat";
+font-size: 12px
+}
+h1.title {
+  font-size: 40px;
+  color: #1C3BA4;
+}
+h1 {
+  color: #B6854D;
+}
+h2 {
+  color: #172984;
+}
+h3 {
+  color: #172984;
+}
+</style>
+```
+
+```{=html}
+<style>
+.nav>li>a {
+    position: relative;
+    display: block;
+    padding: 10px 15px;
+    color: #1C3BA4
+}
+.nav-pills>li.active>a, .nav-pills>li.active>a:hover, .nav-pills>li>a:focus {
+    color: #ffffff;
+    background-color: #09C2BC
+}
+</style>
+```
+
+```{=html}
+<style>
+.tile1-text {
+    position: relative;
+    display: block;
+    padding: 10px 15px;
+    color: #0A6A87;
+    list-style: none;
+}
+.top1-tiles a:nth-of-type(1):hover, .top-tiles1 a:nth-of-type(1):focus{
+    color: #ffffff;
+    background: #0A6A87
+}
+</style>
+```
+
+```{=html}
+<style>
+.tile2-text {
+    position: relative;
+    display: block;
+    padding: 10px 15px;
+    color: #0A6CC8;
+    list-style: none;
+}
+.top2-tiles a:nth-of-type(1):hover, .top2-tiles a:nth-of-type(1):focus{
+    color: #ffffff;
+    background: #0A6CC8
+}
+</style>
+```
+
+```{=html}
+<style>
+.math {
+  font-size: 15px;
+  color: #B6854D;
+}
+</style>
+```
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE, cache = TRUE, cache.lazy = FALSE, collapse = TRUE, 
+                      class.source = "fold-show",
+                      eval = TRUE)
+```
+
+```{r,echo=FALSE, eval=FALSE}
+rm(list = ls())
+```
+
+```{r, echo = FALSE}
+require(showtext)
+# activar showtext
+showtext_auto()
+font_add_google("Montserrat", "montserrat")
+```
+
+
+```{r, echo = FALSE}
+require(dplyr)
+require(spdplyr)
+require(forcats)
+require(htmltools)
+require(Hmisc) #%nin%
+require(leaflet)
+require(htmlwidgets)
+require(jsonlite)
+require(knitr)
+require(kableExtra)
+require(forcats)
+require(rgdal)
+require(tibble)
+require(sf)
+require(stringr)
+require(RColorBrewer)
+require(leafgl)
+require(leaflet.extras)
+require(mapview)
+require(maptools)
+library(htmlwidgets)
+library(htmltools)
+require(WDI)
+require(grDevices)
+require(pals)
+```
+
+# Objetivo  
+
+Lo que se pretende realizar en este documento es tratar de estructurar y comprender la geometría de los mapas internacionales, en los diferentes niveles de desagregación geográfica, entendiendo que cada país tiene  diferentes administraciones políticas, y sabiendo que algunas administraciones geopolíticas no serán concordantes con las de otros países. También es importante que las fuentes de información estén actualizadas y procedan de fuentes confiables.   
+
+## Base de datos
+
+La base de datos del Banco Mundial "World Countries Generalized" está compuesta por varios conjuntos de datos categorizados según diferentes temas como desarrollo económico, educación, salud, medio ambiente, deuda externa, género, población, y más. Cada categoría incluye numerosos indicadores internacionales oficiales que proporcionan estimaciones nacionales, regionales y globales actualizadas. Estas bases de datos ayudan a monitorear y analizar el progreso en diferentes áreas de desarrollo a nivel mundial.
+
+Para más detalles, puedes visitar [DataBank del Banco Mundial](https://databank.worldbank.org/databases).
+
+Utilizando la paquetería `WDI`, la cual contiene a la función `WDI` proporciona un cómodo acceso a más de 40 bases de datos alojadas en el Banco Mundial, incluidos los Indicadores del Desarrollo Mundial (IDM), las Estadísticas de la Deuda Internacional, Doing Business, el Índice de Capital Humano y los Indicadores de pobreza subnacionales. Para agilizar la búsqueda, el paquete de los `WDI` incluye una lista local de las series de datos disponibles. Esta lista local puede actualizarse a la última versión utilizando la función `WDIcache`.
+
+```{r}
+require(WDI)
+mydata <- WDI(country = "all", 
+              indicator = c("SP.POP.TOTL"),  #Población total
+              start = 2015, 
+              end = 2022,
+              extra = TRUE)  
+```
+
+
+La interpolación lineal y extrapola linealmente los datos del Banco Mundial para el indicador dado y luego devuelve los datos para Los años de inicio y fin dados. 
+
+### Función interpolación y extrapolación en línea recta 
+
+La función LinearlyInterpolateFlatExtrapolate realiza interpolación lineal y extrapolación en línea recta de una serie de datos con valores `NA`. Si max.extrapolate no es `NA`, establece como `NA` los datos más allá del rango permitido de extrapolación.
+
+La función LinearlyInterpolateFlatExtrapolateWBData obtiene datos del Banco Mundial para un indicador específico, los ordena por país y año, y aplica interpolación y extrapolación lineal. Luego, devuelve los datos para los años de inicio y fin especificados, indicando si los datos fueron suministrados o interpolados/extrapolados.
+
+**Interpolates lineales y extrapolaciones en línea recta**    
+
+Ejemplos:  
+
+LinearlyInterpolateFlatExtrapolate `c(NA, NA, 1, NA, NA), NA)` devuelve `c(1, 1 , 1, 1, 1)`     
+LineallyInterpolateFlatExtrapolate `c(NA, 2, NA, 4, NA), NA)` devuelve `c(2, 2, 3, 4, 4)`     
+LinearlyInterpolateFlatExtrapolate `c(NA, NA, NA, NA, NA , NA)`, NA) devuelve `c(NA, NA, NA, NA, NA) `      
+LinearlyInterpolateFlatExtrapolate `c(NA, NA, 1, NA, NA), 1)` devuelve `c(NA, 1, 1, 1, 1, NA) `      
+
+
+```{r, class.source = "fold-hide"}
+
+LinearlyInterpolateFlatExtrapolate <- function(data, max.extrapolate = NA){
+                                                 n              <- length(data)
+                                                 indexes.non.na <- which(!is.na(data))
+                                                 n.not.na       <- length(indexes.non.na)
+                                              
+                                                 if (n.not.na == 0) return(data)
+                                              
+                                                 x <- 1:n
+                                                 data <- approx(x = x, y = data, xout = x, rule = 2:2, method = ifelse(n.not.na == 1, "constant", "linear"))$y
+                                              
+                                                 if (!is.na(max.extrapolate)){
+                                                    # Set to NA the data beyond the permitted extrapolation range
+                                                    non.na.range.min <- max(1, (min(indexes.non.na) - max.extrapolate))
+                                                    non.na.range.max <- min(n, (max(indexes.non.na) + max.extrapolate))
+                                                    data[setdiff(1:n, non.na.range.min:non.na.range.max)] <- NA
+                                                 }
+                       
+   return(data)
+}
+
+LinearlyInterpolateFlatExtrapolateWBData <- function(country = "all", indicator = "NY.GNS.ICTR.GN.ZS", start = 2000, end = NA, extra = FALSE, max.extrapolate = NA){
+   # Linearly interpolates and straight-line extrapolates the World Bank data for the given indicator and then returns the data for the given start and end years.
+  
+                                             require(WDI)
+                                             # Get the data for all available years and order by country and year
+                                             df.wb <- WDI(country, indicator, start = 1960, end = 3000, extra, cache = NULL)
+                                             df.wb <- df.wb[order(df.wb$country, df.wb$year),]
+                                          
+                                             # Create a column that indicates whether the data were interpolated/extrapolated
+                                             df.wb$source <- ifelse(is.na(df.wb[,3]), "Interpolated/Extrapolated", "Supplied")
+                                          
+                                             # Linearly interpolate and straight-line extrapolate
+                                             all.countries <- unique(df.wb$country)
+                                             
+                                             for (country in all.countries){
+                                               
+                                                  df.wb[df.wb$country == country, indicator] <- LinearlyInterpolateFlatExtrapolate(df.wb[df.wb$country == country, indicator], max.extrapolate)
+                                             }
+                                          
+                                             # Chop off the data we don't need
+                                             if (is.na(end)) end <- 3000
+                                             df.wb <- df.wb[start <= df.wb$year & df.wb$year <= end,]
+                                          
+                                             return(df.wb)
+}
+```
+
+Haciendo uso de la función `LinearlyInterpolateFlatExtrapolateWBData`, se puede interpolar a la población en los países que no actualizaron sus estadísticas en el periodo del `2015 - 2022`. De esta manera se puede tener una aproximación de la población total al año 2022 de todos los países.      
+
+```{r}
+data <- LinearlyInterpolateFlatExtrapolateWBData(indicator = "SP.POP.TOTL",
+                                                 country = "all", 
+                                                 start = 2015, 
+                                                 end = 2022,
+                                                 max.extrapolate = 2)
+```
+
+Una vez que se generaron los resultados, se filtran todos los resultados para el año `2022`y nos quedamos con la información disponible para ese año.  
+
+
+```{r}
+data  <- data %>%
+          filter(year %in% "2020") %>% 
+           filter(country %nin% "Not classified") %>%
+             rename("Population" = "SP.POP.TOTL") %>%
+               mutate(Percentage = .$Population / sum(.$Population, na.rm = TRUE) * 100) %>% 
+                merge(., mydata %>% 
+                          select(region, iso2c) %>% 
+                           distinct(region, iso2c), 
+                      by = c("iso2c")) %>%
+                 filter(!is.na(Population))
+```
+
+
+<div style="height:350px;overflow:auto;">
+```{r, echo = FALSE, caption}
+require(gt)
+head(data, 15) %>% 
+ gt() %>%
+   tab_header(title = "World Development Indicators (WDI)",
+               subtitle = "2022") %>%
+    fmt_number(columns = "Percentage", 
+                decimals = 2) %>%
+     fmt_integer(columns = "Population", 
+                  sep_mark = " ") %>%
+      tab_options(heading.title.font.size = 15, 
+                  heading.subtitle.font.size = 12,
+                  table.font.names = 'montserrat',
+                  table.font.size = 10,
+                  data_row.padding = px(1)) %>%
+       tab_style(style = list(cell_text(align = "left",
+                                        weight = 'bold')),
+                 locations = list(cells_title(groups = c("title")))) %>%
+        tab_style(style = list(cell_text(align = "left")),
+                  locations = list(cells_title(groups = c("subtitle")))) %>%
+         as_raw_html() 
+```
+</div>
+
+## Shape file  
+
+El Shapefile de `World Countries Generalized` de `ArcGIS Hub` representa los límites generalizados de los países del mundo. Está diseñada para aplicaciones que requieren una representación simplificada de las fronteras nacionales, facilitando el uso en análisis y visualizaciones que no necesitan un alto nivel de detalle geográfico. La base de datos incluye características como nombres de países, códigos ISO, y coordenadas geográficas de las fronteras generalizadas.
+
+Para más detalles, visita [ArcGIS Hub](https://hub.arcgis.com/datasets/esri::world-countries-generalized/explore?location=23.808293%2C-106.745616%2C9.91).
+
+|            Extent:                  |
+|:-----------------------------------:|
+|`XMin`: -20037507.0671618            |
+|`YMin`: -30240971.9583861            |
+|`XMax`: 20037507.0671618             |
+|`YMax`: 18418386.3090785             |
+|`Spatial Reference`: 102100 (`3857`) |
+
+[`World Administrative Divisions`](https://hub.arcgis.com/datasets/esri::world-administrative-divisions/explore?location=19.866466%2C-83.566975%2C4.31): World Administrative Divisions provides a detailed basemap layer for the country first-level administrative divisions of the world as they existed in December 2022.
+
+
+```{r}
+require(maptools)
+# reading population data and world map shape file
+world <- readShapeSpatial(paste0(here::here(), "/Shapefiles/World_Countries_(Generalized)/World_Countries_Generalized.shp"))
+class(world)
+```
+
+### CRS, projections and transformations   
+
+Cambios en la representación de los sistemas de referencia de coordenadas (CRS) y las operaciones con coordenadas.  
+- La asignación del `CRS` actual: Tiene asignado el sistema de referencia `EPSG:3857` a los datos.    
+- Transformación al sistema de referencia `WGS84`: Se transforma el objeto al sistema de referencia `EPSG:4326`.     
+
+```{r}
+#merging population dataset with shapefile dataset
+pop_shape <- world %>% 
+              spdplyr:::left_join.Spatial(., data, by = c("ISO" = "iso2c")) %>%
+               filter(!is.na(Population)) %>%
+                filter(!is.na(region)) %>% 
+                 mutate(region = fct_relevel(.$region, c("North America", "Latin America & Caribbean",  "Europe & Central Asia" , "Middle East & North Africa", "Sub-Saharan Africa", "East Asia & Pacific", "South Asia"))) 
+
+# the shapefile does not have an integrated projection 
+proj4string(pop_shape) <- CRS("+init=epsg:3857")
+
+pop_shape <- spTransform(pop_shape, CRSobj = CRS("+init=epsg:4326")) 
+```
+
+Primeramente, al shapefile `world` se le anexan los datos obtenido del Banco Mundial y a su vez se revisa que no haya datos faltantes.     
+Despues, utilizando la función `proj4string` de la paquetería `sp`, se establecen o recuperan los atributos de proyección en las clases que amplían el SpatialData; utlizando la función `CRS()`, se establece el sistema de referencia de coordenadas (CRS), también denominado "proyección" con su proyección original `+init=epsg:3857`. Por último se transforman las coordenadas del objeto a la nueva proyección con la función `spTransform()` de la paqueteria `sp`.      
+
+
+### Centroides   
+
+Se anexan los centroides, para integrar los popups al mapa.     
+
+```{r}
+require(BAMMtools)
+pop_shape@data <- pop_shape@data %>% 
+                   cbind(., as.data.frame(coordinates(pop_shape)) %>%
+                             rename("Longitude" = "V1","Latitude" = "V2")) %>% 
+                      mutate(quant = ntile(.$Population, 30),
+                             NB = cut(.$Population, breaks = getJenksBreaks(.$Population, 30), include.lowest = TRUE, labels = FALSE))
+```
+
+Utilizando la función `getJenksBreaks()` de la paquetería `BAMMtools`, se estratifica a la población en 30 categorías para determinar el tamaño de los circulos en el mapa.      
+
+### Límites del mapa  
+
+Se obtienen los límites del mapa con la función `st_bbox()` de la paquetería `sp`, el cual devuelve el límite de una característica simple como un vector numérico de longitud cuatro, con los valores `xmin`, `ymin`, `xmax` e `ymax`.   
+
+
+```{r}
+require(sf)
+bounding_box <- st_bbox(pop_shape)
+bounding_box
+```
+                                                          
+
+## Mapa 
+
+Se van a estructurar por partes el leaflet, para la realización del mapa del mundo.   
+
+### Paleta de colores  
+
+Se va a estructurar la paleta de colores de acuerdo a la región de los países.   
+
+```{r}
+paleta <- colorRampPalette(pals::kovesi.linear_bmy_10_95_c78(100))(length(unique(pop_shape$region)))
+mypalette <- leaflet::colorFactor(palette = paleta, 
+                                   domain = forcats::fct_relevel(data$region, c("North America", "Latin America & Caribbean",  "Europe & Central Asia" , "Middle East & North Africa", "Sub-Saharan Africa", "East Asia & Pacific", "South Asia")),
+                                    na.color = "transparent")
+```
+
+### Formato del título  
+
+```{r}
+# Estructura del título
+tag.map.title <- tags$style(HTML("
+  .leaflet-control.map-title { 
+    transform: translate(-50%,20%);
+    position: fixed !important;
+    left: 50%;
+    text-align: center;
+    padding-left: 10px; 
+    padding-right: 10px; 
+    background: rgba(255,255,255,0.75);
+    font-weight: bold;
+    font-size: 14px;
+    color: '#12176E';
+  }
+ ")) 
+
+title <- tags$div(
+  tag.map.title,
+  HTML(paste(
+    "<div class='map-title'>",
+    "Model: Population interpolated from 2015 - 2022.<br>",
+    "Source: World Development Indicators (WDI) by World Bank",
+    "</div>"
+  ))
+)
+```
+
+### Labels for popups
+
+```{r}
+fillColor <- mypalette(pop_shape$region)
+
+## Labels for poligons shape
+state_popup_country <- paste('<font size="3"; font-family: "Century Gothic"><strong>',"Country:",'</strong>','<strong>', pop_shape@data$COUNTRY,'</strong></font>','<br/>',
+                               '<font size="2"; font-family: "Century Gothic"><strong>',"Population:",'</strong></font>','<font size="2"; font-family: "Century Gothic"; color=', fillColor,'><strong>', formatC(pop_shape@data$Population, format = "f", big.mark = " ", digits = 0),'</strong></font>','<br/>',
+                               '<font size="2"; font-family: "Century Gothic"><strong>',"Percentage %:",'</strong></font>','<font size="2"; font-family: "Century Gothic"; color=', fillColor,'><strong>',  paste(formatC(pop_shape@data$Percentage, digits = 1), "%") ,'</strong></font>','<br/>'
+                             ) %>% 
+                       lapply(htmltools::HTML)
+
+## Labels for circles
+state_iso3c <- paste('<font size="2"; font-family: "Century Gothic"; color=', fillColor,'><strong>', pop_shape@data$iso3c,'</strong></font>','<br/>') %>% 
+               lapply(htmltools::HTML)
+```
+
+```{r, echo = FALSE}
+# generating labels 
+labels <- sprintf("<strong>%s</strong><br/>%s (%s%%)",
+                  as.character(pop_shape$COUNTRY),
+                  prettyNum(pop_shape$Population, big.mark = ",", scientific = FALSE),
+                   as.character(round(pop_shape$Percentage, 1))) %>% 
+           lapply(htmltools::HTML)
+```
+
+
+### Leaflet 
+
+```{r}
+map <- leaflet(options = leafletOptions(minZoom = 2, maxZoom = 10)) %>% 
+         setView(lng = 0, lat = 0, zoom = 2.5) %>%
+          addMapPane("layer1", zIndex = 420) %>% # shown above ames_lines
+           addMapPane("layer2", zIndex = 430) %>% # shown below
+            addProviderTiles(providers$CartoDB.Positron,
+                             options = providerTileOptions(minZoom = 2, maxZoom = 10)) %>%
+             addPolygons(data = pop_shape,
+                          fillColor = "#EBEBEB",
+                           fillOpacity = 0.8,
+                            stroke = TRUE, # dibujar los bordes del polígono
+                             weight = 1,  # line thickness
+                              dashArray = "1",
+                               opacity = 1,
+                                color = ~mypalette(region),  # line colour 
+                                 highlight = highlightOptions(weight = 2,
+                                                              color = "red", # Color de selección
+                                                              dashArray = "",
+                                                              fillOpacity = 0.6,
+                                                              bringToFront = TRUE),
+                                  options = pathOptions(pane = "layer1"), 
+                                  label  = state_iso3c,
+                                  labelOptions = labelOptions(textOnly = FALSE, 
+                                                              opacity = 0.9,
+                                                              style = list("font-weight" = "normal", 
+                                                                           "font-family" = "montserrat",                 
+                                                                           opacity = 0.7,
+                                                                           padding = "3px 8px"),
+                                                                           textsize = '15px',
+                                                                           direction = "auto")
+                          ) %>%
+              addCircleMarkers(data = pop_shape,
+                                lng = ~Longitude,
+                                 lat = ~Latitude,
+                                  radius = ~NB,
+                                   fillColor = ~mypalette(region),
+                                    color = ~mypalette(region),
+                                     fillOpacity = 0.7,
+                                      options = pathOptions(pane = "layer2"), 
+                                       stroke = TRUE, 
+                                        popup = state_popup_country,  # Etiquetas
+                                         popupOptions = popupOptions(textOnly = TRUE, 
+                                                                     opacity = 0.9,
+                                                                     style = list("font-weight" = "normal", 
+                                                                                  "font-family" = "montserrat",                 
+                                                                                   opacity = 0.7,
+                                                                                   padding = "3px 8px"),
+                                                                                   textsize = '15px',
+                                                                                   direction = "auto")
+                               )
+```
+
+#### Legend and features    
+
+```{r}
+map <- map %>% 
+        addResetMapButton() %>%
+         addMiniMap() %>%
+          addScaleBar(position = "bottomright", 
+                      options = scaleBarOptions(maxWidth = 100, 
+                                                metric = TRUE,
+                                                imperial = TRUE, 
+                                                updateWhenIdle = TRUE))  %>%
+           addControl(title,
+                      position = "bottomright",
+                      className="map-title") %>%
+            addLegend("bottomleft", 
+                      colors = paleta, 
+                      labels = c("North America", "Latin America & Caribbean",  "Europe & Central Asia" , "Middle East & North Africa", "Sub-Saharan Africa", "East Asia & Pacific", "South Asia"),
+                      title = stringr::str_wrap("Region", 15),
+                      opacity =  0.7) 
+```
+
+#### OnRender
+
+```{r}
+# Usa la función onRender para abrir los popups automáticamente
+map <- map %>% onRender("
+                        function(el, x) {
+                          var map = this;
+                          map.eachLayer(function(layer) {
+                            if (layer instanceof L.Polygon) {
+                              layer.openPopup();
+                            }
+                          });
+                        }
+                      ")
+
+# Mostrar el mapa con el título posicionado manualmente
+# Ajustar la posición manualmente si es necesario
+map <- map %>%
+        htmlwidgets::onRender("
+                              function(el, x) {
+                                var title = document.querySelector('.map-title');
+                                title.style.bottom = '20px';  // Ajusta el valor según sea necesario
+                                title.style.left = '50%';
+                                title.style.transform = 'translateX(-50%)';
+                              }
+                            ")
+
+map
+```
+
+#### Output  
+
+```{r, eval = FALSE}
+map %>% 
+ mapshot(url = paste0(here::here(), "/Output/Worldmap_Leaflet.html")) 
+```
+
+
+```{r, collapse=FALSE}
+sesion_info <- devtools::session_info()
+```
+
+
+```{r, echo = FALSE}
+kable(dplyr::select(tibble::as_tibble(sesion_info$packages %>% dplyr::filter(attached == TRUE)),
+                    c(package, loadedversion, source))) %>%
+   kable_classic(full_width = TRUE, html_font = "montserrat", font_size = 10) 
+```
+
+
