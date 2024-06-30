@@ -10,7 +10,8 @@
 
 ### Leaflet del Mundo
 
-Estructura general del leaflet
+En el siguiente script se muestra de manera general la estructura de
+leaflet, utilizando los datos del Banco Mundial.
 
 **Enlace:**
 <https://dvillasanao.github.io/Simple_Maps/Output/01_WorldLeaflet.html>
