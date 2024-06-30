@@ -254,14 +254,17 @@ Una vez que se generaron los resultados, se filtran todos los resultados para el
 ```{r}
 data  <- data %>%
           filter(year %in% "2020") %>% 
-           filter(country %nin% "Not classified") %>%
-             rename("Population" = "SP.POP.TOTL") %>%
-               mutate(Percentage = .$Population / sum(.$Population, na.rm = TRUE) * 100) %>% 
-                merge(., mydata %>% 
-                          select(region, iso2c) %>% 
-                           distinct(region, iso2c), 
-                      by = c("iso2c")) %>%
-                 filter(!is.na(Population))
+           filter(country %nin% c("Not classified", "World")) %>%
+            filter(!is.na(iso3c)) %>%
+             filter(!grepl("\\d", iso2c)) %>%
+              dplyr::rename("Population" = "SP.POP.TOTL") %>%
+               filter(!is.na(Population)) %>%
+                left_join(., mydata %>% 
+                           select(region, iso2c) %>% 
+                            distinct(region, iso2c), 
+                       by = c("iso2c")) %>%
+                 filter(region %nin% "Aggregates" & !is.na(region)) %>%
+                  mutate(Percentage = .$Population / sum(.$Population, na.rm = TRUE) * 100) 
 ```
 
 
@@ -418,7 +421,7 @@ fillColor <- mypalette(pop_shape$region)
 ## Labels for poligons shape
 state_popup_country <- paste('<font size="3"; font-family: "Century Gothic"><strong>',"Country:",'</strong>','<strong>', pop_shape@data$COUNTRY,'</strong></font>','<br/>',
                                '<font size="2"; font-family: "Century Gothic"><strong>',"Population:",'</strong></font>','<font size="2"; font-family: "Century Gothic"; color=', fillColor,'><strong>', formatC(pop_shape@data$Population, format = "f", big.mark = " ", digits = 0),'</strong></font>','<br/>',
-                               '<font size="2"; font-family: "Century Gothic"><strong>',"Percentage %:",'</strong></font>','<font size="2"; font-family: "Century Gothic"; color=', fillColor,'><strong>',  paste(formatC(pop_shape@data$Percentage, digits = 1), "%") ,'</strong></font>','<br/>'
+                               '<font size="2"; font-family: "Century Gothic"><strong>',"Percentage %:",'</strong></font>','<font size="2"; font-family: "Century Gothic"; color=', fillColor,'><strong>',  paste(format(round(pop_shape@data$Percentage, 2), digits = 1, nsmall = 0L,  scientific = FALSE, trim = TRUE), "%") ,'</strong></font>','<br/>'
                              ) %>% 
                        lapply(htmltools::HTML)
 
@@ -561,4 +564,6 @@ kable(dplyr::select(tibble::as_tibble(sesion_info$packages %>% dplyr::filter(att
    kable_classic(full_width = TRUE, html_font = "montserrat", font_size = 10) 
 ```
 
+
+<a rel="license" href="http://creativecommons.org/licenses/by/4.0/"><img src="https://i.creativecommons.org/l/by/4.0/88x31.png" alt="Creative Commons Licence" style="border-width:0"/></a><br />This work by [**Diana Villasana Ocampo**]{xmlns:cc="http://creativecommons.org/ns#" property="cc:attributionName"} is licensed under a <a rel="license" href="http://creativecommons.org/licenses/by/4.0/">Creative Commons Attribution 4.0 International License</a>.
 
