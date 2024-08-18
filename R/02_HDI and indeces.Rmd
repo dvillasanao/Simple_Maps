@@ -1,0 +1,465 @@
+---
+title: "The Human Development Index and related indices"
+subtitle: "Data source: Our World in Data /https://ourworldindata.org/charts/"
+author: "Diana Villasana Ocampo"
+output:
+   html_document:
+      code_folding: hide
+      highlight: tango
+      theme: flatly
+      toc: true
+      toc_depth: 4
+      toc_float:
+        collapsed: yes
+knit: (function(input, ...) {
+    rmarkdown::render(
+      input,
+      output_dir = "../Output",
+      output_format = 'html_document'
+    )
+  })
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE, cache = FALSE, cache.lazy = FALSE, collapse = TRUE, 
+                      class.source = "fold-show",
+                      eval = TRUE)
+```
+
+```{r,echo=FALSE, eval=FALSE}
+rm(list = ls())
+```
+
+```{r, echo=FALSE, results=FALSE}
+#Font Stlye
+require(showtext)
+library(extrafont)
+windowsFonts()
+my_font <- "Montserrat Medium"
+```
+
+```{r, echo = FALSE, eval = TRUE}
+require(dplyr)
+require(spdplyr)
+require(forcats)
+require(Hmisc) #%nin%
+require(htmlwidgets)
+require(knitr)
+require(kableExtra)
+require(forcats)
+require(rgdal)
+require(tibble)
+require(sf)
+require(stringr)
+require(RColorBrewer)
+require(mapview)
+require(maptools)
+library(htmltools)
+require(WDI)
+require(grDevices)
+require(pals)
+require(gt)
+require(googleVis) # for cool Hans Rosling style visualizations
+library(plotly) # for updated version of cool Hans Rosling style visualizations
+library(DT) # data table
+require(ggrepel)
+require(scales)
+require(ggsci)
+require(extrafont)
+library(tidyr)
+require(BAMMtools)
+```
+
+# El Índice de Desarrollo Humano (`HDI`)
+
+El Índice de Desarrollo Humano lo publica el Programa de las Naciones Unidas para el Desarrollo (`PNUD`). Se basa en la idea de que el desarrollo humano significa que las personas tienen una vida larga y saludable, están bien informadas y gozan de un nivel de vida digno.
+
+Más concretamente, estas tres dimensiones se miden con cuatro indicadores:
+
+-   **Una vida larga y saludable**: medida por la esperanza de vida al nacer.\
+-   **Conocimientos**: medidos por los años de escolarización previstos (para los niños en edad escolar) y la media de años de escolarización (para los adultos mayores de 25 años).\
+-   **Un nivel de vida digno**: medido por la Producto Interno Bruto per capita (PIB), o bien, Gross National Income (GNI) per capita.
+
+El índice se calcula normalizando y agregando estos tres indicadores.
+
+En primer lugar, los indicadores se sitúan en la misma escala, de $0$ a $1$. Para ello, se fijan valores mínimos y máximos para cada indicador, y un país que se sitúe en el valor mínimo o por debajo de él recibe una puntuación de $0$, y un país que se sitúe en el valor máximo o por encima de él recibe una puntuación de $1$.
+
+$$\mbox{Dimension index} = \frac{\mbox{actual value - minimum value}}{\mbox{maximum value - minimum value}}$$
+
+En segundo lugar, se combinan los indicadores. Para ello, se calcula la media aritmética de los indicadores de conocimiento y, a continuación, se calcula la media geométrica de las tres dimensiones.
+
+$$HDI = \frac{1}{3} IEV + \frac{1}{3} IE + \frac{1}{3} PIB$$ donde,
+
+-   $IEV$ = Índice de esperanza de vida,
+-   $IE$ = Índice de alfabetización,
+-   $PIB$ = Índice del Producto Interno Bruto per capita.
+
+El `IDH` resultante puntúa a cada país en un espectro de $0$ a $1$. Abarca casi todos los países desde 1990. Además del índice en sí, también se utiliza para clasificar a los países en grupos en función de su desarrollo.
+
+# Our World in Data
+
+«Our World in Data» es una plataforma integral que ofrece investigación y datos sobre una amplia gama de retos mundiales, como la salud, la educación, la pobreza, la violencia, el poder político, los derechos humanos y el impacto medioambiental. La plataforma es fruto de la colaboración entre investigadores de la Universidad de Oxford y el Global Change Data Lab, con el objetivo de presentar datos accesibles y comprensibles que ayuden a seguir las tendencias y progresos mundiales a largo plazo.
+
+El sitio web presenta visualizaciones interactivas y artículos que exploran cuestiones críticas como las causas de la muerte, la pobreza, la educación y los Objetivos de Desarrollo Sostenible (`ODS`). Los datos y la investigación están diseñados para informar a la política, los medios de comunicación y el discurso público, por lo que es un recurso valioso para cualquier persona interesada en el desarrollo mundial y los cambios sociales a largo plazo.
+
+La plataforma hace hincapié en la transparencia, con todos los datos y códigos disponibles para uso público bajo licencias abiertas. También destaca la naturaleza interconectada de los retos mundiales, fomentando una perspectiva amplia de los factores que influyen en las condiciones de vida en el mundo.
+
+Para más detalles, puede explorar el sitio directamente [aquí](https://ourworldindata.org/).
+
+```{r}
+mydata <- read.csv(paste0(here::here(), "/Data/human-development-index-groups.csv"))
+```
+
+Se toma como referencia, el año 2022.
+
+```{r}
+data <- mydata %>% 
+         filter(Year %in% 2022)
+```
+
+::: {style="height:350px;overflow:auto;"}
+```{r, echo = FALSE, caption}
+require(gt)
+head(data, 15) %>% 
+ gt() %>%
+   tab_header(title = md("The Human Development Index (HDI) <br> United Nations Development Programme (UNDP)"),
+               subtitle = "Year: 2022") %>%
+    tab_footnote(footnote = "Source: https://ourworldindata.org/human-development-index") %>%
+    fmt_number(columns = 4, 
+                decimals = 3) %>%
+      tab_options(heading.title.font.size = 15, 
+                  heading.subtitle.font.size = 12,
+                  table.font.names = 'montserrat',
+                  table.font.size = 10,
+                  data_row.padding = px(1)) %>%
+       tab_style(style = list(cell_text(align = "left",
+                                        weight = 'bold')),
+                 locations = list(cells_title(groups = c("title")))) %>%
+        tab_style(style = list(cell_text(align = "left")),
+                  locations = list(cells_title(groups = c("subtitle")))) %>%
+         as_raw_html() 
+```
+:::
+
+Se filtra la base de datos y se remueven los casos agregados.
+
+```{r}
+data <- data %>% 
+         filter(Code %nin% "") # remove aggregates
+```
+
+```{r, echo = FALSE}
+tabla <- mydata %>% 
+          filter(Year %in% 2022) %>%
+           filter(Code %in% "")
+
+require(gt)
+tabla %>%
+ gt() %>%
+   tab_header(title = md("The Human Development Index (HDI) <br> United Nations Development Programme (UNDP)"),
+               subtitle = "Aggregate data") %>%
+    tab_footnote(footnote = "Source: https://ourworldindata.org/human-development-index") %>%
+    fmt_number(columns = 4, 
+                decimals = 3) %>%
+      tab_options(heading.title.font.size = 15, 
+                  heading.subtitle.font.size = 12,
+                  table.font.names = 'montserrat',
+                  table.font.size = 10,
+                  data_row.padding = px(1)) %>%
+       tab_style(style = list(cell_text(align = "left",
+                                        weight = 'bold')),
+                 locations = list(cells_title(groups = c("title")))) %>%
+        tab_style(style = list(cell_text(align = "left")),
+                  locations = list(cells_title(groups = c("subtitle")))) %>%
+         as_raw_html() 
+```
+
+# Mapa (Plotly)
+
+Se genera un mapa geográfico interactivo utilizando la librería `plotly`. Este mapa muestra el Índice de Desarrollo Humano (`HDI`) de diferentes países.
+
+```{r}
+# Se genera una escala de colores usando 'viridis'
+colorscale <- scales::col_numeric(palette = viridis::inferno(204), domain = NULL)
+
+map <- data %>%
+        plot_geo(locations = ~ Code,
+                 color = ~ Human.Development.Index,
+                 z = ~ Human.Development.Index,
+                 text = ~ Entity,
+                 colors = viridisLite::viridis(n = nrow(data), option = 'A', begin = 0, end = 1)) %>% 
+          layout(title = "Countries by The Human Development Index in 2022", 
+                 geo = list(showland = FALSE,
+                            showcountries = TRUE)) %>%
+          colorbar(title = 'HDI')  
+         
+map
+```
+
+# Globe map (Plotly)
+
+Siguiendo un enfoque similar al anterior, se genera un mapa geográfico interactivo que visualiza el Índice de Desarrollo Humano de 2022 para diferentes países. Utilizando algunas configuraciones adicionales como la proyección ortográfica, colores para lagos y ríos, y bordes personalizados para los países.
+
+-   `plot_geo()` es la función que genera un mapa geográfico interactivo.\
+-   `projection = list(type = 'orthographic', rotation = list(lon = -50, lat = 10, roll = 0))`: Configura la proyección del mapa como ortográfica (que da una apariencia 3D) y rota el mapa para centrarlo en una longitud de -50 y latitud de 10.
+
+```{r, class.source = "fold-hide"}
+# Se genera una escala de colores usando 'viridis'
+colorscale <- scales::col_numeric(palette = viridis::inferno(204), domain = NULL)
+
+map <- data %>%
+        plot_geo(locations = ~ Code,
+                 color = ~ Human.Development.Index,
+                 z = ~ Human.Development.Index,
+                 text = ~ Entity,
+                 marker = list(line = list(color = toRGB("#d1d1d1"), 
+                                           width = 0.5)),
+                 colors = viridisLite::viridis(n = nrow(data), option = 'A', begin = 0, end = 1)) %>% 
+          layout(title = "Countries by The Human Development Index in 2022", 
+                 geo = list(showland = FALSE,
+                            showcountries = TRUE,
+                            showframe = TRUE,
+                            showcoastlines = FALSE,
+                            resolution = '300',
+                            showlakes = TRUE,
+                            lakecolor = '#c9d2e0',
+                            showocean = TRUE,
+                            oceancolor = "lightblue",
+                            showrivers = TRUE,
+                            rivercolor = '#99c0db',
+                            projection = list(type = 'orthographic',
+                                              rotation = list(lon = -50,
+                                                              lat = 10,
+                                                              roll = 0))),
+                 paper_bgcolor = "transparent") %>%  # Color de fondo del área de trazado 
+           colorbar(title = 'HDI')  
+         
+map
+```
+
+# Human Development Index vs. Augmented Human Development Index
+
+El Índice de Desarrollo Humano Ajustado (`AIDH`) o bien, Augmented Human Development Index (`AHDI`); es una versión ampliada del `IDH` que incluye dimensiones adicionales para reflejar una evaluación más completa del desarrollo humano. Dependiendo del contexto en que se utilice, puede incluir:
+
+-   `Desigualdad`: El AHDI ajusta el IDH teniendo en cuenta la desigualdad en la distribución de cada una de las tres dimensiones originales (salud, educación e ingresos). Esto significa que el índice refleja no solo el promedio de desarrollo en una sociedad, sino también cómo se distribuye ese desarrollo entre diferentes grupos dentro del país.
+
+-   `Factores ambientales`: Algunas versiones del AHDI incorporan dimensiones relacionadas con la sostenibilidad ambiental y el acceso a recursos naturales.
+
+-   `Derechos y libertades`: También se puede ampliar para incluir aspectos relacionados con derechos humanos, libertades civiles y participación política.
+
+```{r}
+idh_data <- read.csv(paste0(here::here(), "/Data/hdi-vs-augmented-hdi.csv"))
+```
+
+Se realiza una serie de transformaciones y filtrados sobre un data.frame llamado `idh_data`. El resultado es una tabla que contiene información sobre el Índice de Desarrollo Humano (`HDI`), el Índice de Desarrollo Humano Ajustado (`AHDI`), porcentaje de la población, y continente, para varios países entre 1990 y 2022.
+
+-   `tidyr:::fill(Continent, .direction = "up")`: rellena los valores `NA` en la columna Continent hacia arriba, es decir, copia el valor no vacío más cercano hacia los NA anteriores.\
+-   `filter(Code %nin% "" & Code %nin% 'OWID_WRL')`: elimina filas que no tienen un código válido o que corresponden a un código global agregado (por ejemplo, 'OWID_WRL' podría representar datos globales agregados, no específicos de un país).\
+-   `mutate(Labels = case_when(Entity %in% countries ~ Entity))`: crea una columna **Labels** que solo contiene el nombre de la entidad si está en la lista de countries (los países seleccionados).
+
+```{r, eval = FALSE}
+countries <- c("Vietnam", "China", "India", "Thailand", "Malaysia", "France", "Mexico", "Canada",
+               "Germany", "Japan", "Nigeria", "Indonesia", "Philippines", "United States", "Liechtenstein") # Some countries
+
+tabla <- idh_data %>% 
+          rename("HDI" = paste(names(.)[4]),
+                 "AHDI" = paste(names(.)[5]),
+                 "Population" = paste(names(.)[7])) %>% 
+           arrange(Entity, Continent) %>%
+            #Se filtra a la población de 1990 - 2022
+            mutate(Continent = ifelse(nchar(.$Continent) > 0, .$Continent, NA)) %>%
+             # Se rellena la columna "Continent" hacia abajo
+             tidyr:::fill(Continent, .direction = "up") %>%
+              filter(Year >= 1990 & Year <= 2022) %>% 
+               # Se quitan los datos agregados 
+               filter(Code %nin% "" & Code %nin% 'OWID_WRL') %>% 
+                group_by(Year) %>% 
+                 mutate(Percentage = Population / sum(.$Population, na.rm = TRUE) * 100) %>% 
+                  mutate(quant = ntile(HDI, 30),
+                         NB = cut(HDI, breaks = getJenksBreaks(HDI, 5), include.lowest = TRUE, labels = FALSE)) %>% 
+                   mutate(Labels = case_when(Entity %in% countries ~ Entity),
+                          Year = as.integer(Year)) %>%
+                    ungroup() %>%
+                     filter(!is.na(HDI) & !is.na(AHDI)) %>%
+                      select(Entity, Code, Year, HDI, AHDI, Percentage, Continent, Labels)
+```
+
+Se genera una visualización interactiva utilizando la librería `plotly`. La gráfica muestra la relación entre el Índice de Desarrollo Humano (`HDI`) y el Índice de Desarrollo Humano Ajustado (`AHDI`) para diferentes países a lo largo del tiempo (1990-2022). Los puntos en la gráfica son de diferentes tamaños, colores y posiciones dependiendo de las variables seleccionadas, y se incluyen etiquetas de texto para algunos países específicos. La visualización es útil para analizar cómo han cambiado estos índices en diferentes regiones y países a lo largo del tiempo.
+
+-   `group = ~ factor(Continent)` y `legendgroup = ~ factor(Continent)`: Agrupan los puntos y las leyendas por continente.\
+-   `frame = ~ Year`: Se utiliza para crear una animación en la que cada cuadro representa un año diferente.
+
+```{r, eval = FALSE, class.source = "fold-hide"}
+p <- plot_ly(tabla,
+             x = ~ AHDI, 
+             y = ~ HDI, 
+             size = ~ Percentage, 
+             color = ~ factor(Continent),
+             group = ~ factor(Continent),
+             legendgroup = ~factor(Continent),
+             frame = ~ Year) %>%
+      add_trace(
+             text = ~ Entity,
+             hoverinfo = 'text',
+             type = 'scatter',
+             mode = 'markers',
+             marker = list(opacity = 0.5,
+                           sizemode = 'diameter',
+                           #Choosing the range of the bubbles' sizes:
+                           #sizes = c(10, 50),
+                           colors = viridisLite::viridis(n = 6, option = 'A', begin =  0.3, end = 0.8)
+                           ),
+             colors = viridisLite::viridis(n = 6, option = 'A', begin = 0.3, end = 0.8)
+             ) %>% 
+      layout(uniformtext = list(minsize = 5)) %>%
+      layout(margin = list(t = 100, l = 100, r = 100, b = 100),
+             title = list(text = md("Countries by The Human Development Index <br> United Nations Development Programme (UNDP) <br> Lag time: 1990 - 2022"),
+                          font = list(size = 14, 
+                                      xref = 'x', 
+                                      yref = 'y', 
+                                      x = 0.5, 
+                                      y = 1.3)),
+             yaxis = list(title = "Human Development Index (HDI)"),
+             xaxis = list(title = "Augmented Human Development Index (AHDI)",
+                          #range = c(0, 1),
+                          type = "log"),
+             showlegend = TRUE) %>%
+  animation_opts(frame = 500, transition = 0, redraw = TRUE) 
+
+# Se anexan las etiquetas
+p <- p %>%    
+     add_text(text = ~ Labels,
+              showlegend = FALSE,
+              mode = 'text',
+              textposition = c('outside left'),
+              textfont = list(family = "sans serif",
+                              colors = viridisLite::viridis(n = 5, option = 'A', begin =  0.3, end = 0.8))) 
+```
+
+```{r, echo = FALSE, out.width='100%'}
+#saveRDS(p, file =paste0(here::here(), "/Output/HDI_Plotly.rds"))
+readRDS(file = paste0(here::here(), "/Output/HDI_Plotly.rds"))
+```
+
+# Life Expectancy and GDP per capital
+
+**Se cargan los datos desde archivos CSV y Excel:**
+
+-   `idh_data`: Carga los datos relacionados con el Índice de Desarrollo Humano (`HDI`) y el Índice de Desarrollo Humano Ajustado (`AHDI`) desde un archivo CSV.\
+-   `life_expextancy`: Carga datos de esperanza de vida desde otro archivo CSV.\
+-   `gdp`: Carga datos del Producto Interno Bruto (`PIB`) per cápita desde un archivo CSV adicional.\
+-   `regions`: Carga datos de regiones desde un archivo Excel utilizando la función `read_xlsx()` de la librería `readxl`.
+
+```{r, eval = FALSE}
+idh_data <- read.csv(paste0(here::here(), "/Data/hdi-vs-augmented-hdi.csv"))
+life_expextancy <- read.csv(paste0(here::here(), "/Data/life-expectancy-undp.csv"))
+gdp <- read.csv(paste0(here::here(), "/Data/gross-national-income-per-capita-undp.csv"))
+regions <- readxl::read_xlsx(paste0(here::here(), "/Data/Regions.xlsx"))
+```
+
+Se cargan los datos para un análisis específico, filtrando por el año `2022` y combinando los diferentes conjuntos de datos en una sola tabla (`tabla`). El resultado es un data frame que contiene información sobre el `HDI`, el `AHDI`, la población, la esperanza de vida, el PIB per cápita y la región de cada país.
+
+```{r, eval = FALSE}
+tabla <- idh_data %>% 
+          rename("HDI" = paste(names(.)[4]),
+                 "AHDI" = paste(names(.)[5]),
+                 "Population" = paste(names(.)[7])) %>% 
+           arrange(Entity, Continent) %>%
+            #Se filtra a la población de 1990 - 2022
+            mutate(Continent = ifelse(nchar(.$Continent) > 0, .$Continent, NA)) %>%
+             # Se rellena la columna "Continent" hacia abajo
+             tidyr:::fill(Continent, .direction = "up")  %>%
+              filter(Year == "2022")  %>% 
+               # Se quitan los datos agregados 
+               filter(Code %nin% "" & Code %nin% 'OWID_WRL') %>% 
+                left_join(., regions %>% select(-c(Country, Entity)), by = c("Code" = "iso3c")) %>%
+                 merge(., life_expextancy %>% select(-Entity), by = c("Code", "Year")) %>% 
+                  merge(., gdp %>% select(-Entity), by = c("Code", "Year")) 
+```
+
+La relación entre el PIB per cápita y la esperanza de vida al nacer es generalmente positiva, lo que significa que, en promedio, los países con un PIB per cápita más alto tienden a tener una mayor esperanza de vida al nacer.
+
+1.  `Recursos Económicos`: Un mayor PIB per cápita sugiere que un país tiene más recursos económicos disponibles por persona. Esto permite a los gobiernos y a los individuos invertir más en servicios esenciales como la salud, la educación, la nutrición, y la infraestructura, lo que contribuye a una vida más larga y saludable.
+
+2.  `Calidad de Vida`: En países con mayores ingresos, las personas suelen tener mejor acceso a atención médica de calidad, agua potable, saneamiento, y una alimentación adecuada. Estos factores reducen la mortalidad infantil y mejoran la salud general, lo que prolonga la vida.
+
+3.  `Inversión en Salud`: Los países más ricos pueden destinar más recursos en servicios de salud pública que tienen un impacto directo en la longevidad.
+
+**Observaciones:**
+
+-   `Curva Logarítmica`: La relación no siempre es lineal, especialmente en los países más ricos, donde incrementos adicionales en el PIB per cápita tienen un impacto menor en la esperanza de vida. Esta relación se suele representar mejor con una curva logarítmica, como se indicó en el gráfico, donde la pendiente de la curva se aplana a medida que el PIB per cápita aumenta.
+
+-   `Factores No Económicos`: Aunque la relación es fuerte, no es perfecta. Pueden existir diferentes factores como culturales, sociales, ambientales y de política pública que también juegan un papel importante en determinar la esperanza de vida, lo que explica las variaciones entre países con niveles similares de PIB per cápita.
+
+A continuación, se analiza la relación entre el PIB per cápita y la esperanza de vida al nacer en el año 2022.
+
+```{r, eval = FALSE, class.source = "fold-hide"}
+tabla %>%
+ ggplot(aes(x = Gross.national.income.per.capita, 
+            y = Life.expectancy.at.birth, 
+            size = Population, 
+            color = region)) + 
+  geom_point(alpha = 0.5, na.rm = TRUE) + 
+   geom_smooth(method = "lm",
+               formula = y ~ log(x), 
+               color = "orange", 
+               alpha = 0.1, 
+               se = FALSE) + 
+    geom_text_repel(data = tabla %>% filter(Entity %in% countries), 
+                    aes(label = Entity), 
+                    color = "gray20", 
+                    size = 6, 
+                    direction = 'both',
+                    nudge_x = 1,
+                    min.segment.length = 0,
+                    force_pull = 1,
+                    force = 1) + 
+     theme_minimal() + 
+      theme(panel.grid.minor = element_blank(),
+            plot.background = element_rect(fill = "#e5e5e5", color = NA),
+            plot.margin = unit(c(1, 1, 1, 1), "cm"),
+            plot.title = element_text(size = 24, color = "gray10"), 
+            plot.subtitle = element_text(size = 14, color = "gray40", vjust = -0.5),
+            plot.caption = element_text(size = 14, color = "gray40", face = "italic", hjust = 0),
+            legend.position = c(0.9, 0.4),
+            legend.key.size = unit(0.8, 'cm'),
+            legend.title = element_text(size = 18, face = "bold"),
+            legend.text = element_text(size = 16, color = "grey30"),
+            axis.text.y = element_text(size = 12, color = "gray30"),
+            axis.text.x  = element_text(size = 12, color = "gray30", angle = 45),
+            axis.title = element_text(my_font, size = 16)
+            )+
+       scale_x_continuous(breaks = seq(0, max(tabla$Gross.national.income.per.capita), 10000), labels = dollar) + 
+        scale_y_continuous(breaks = seq(50, 85, 5)) + 
+         scale_size(range = c(1, 30)) + 
+          scale_color_lancet(name = "Group:", na.translate = F) + 
+           guides(size = FALSE) + 
+      labs(x = "GDP per capital", 
+           y = "Life expectancy", 
+           title = "The relationship between Life Expectancy and GDP per capital in 2022", 
+           subtitle = str_wrap("According to WHO definitions, Life Expectancy at reflects the overall mortality level of a population and it is defined as the average number of years that a newborn is expected to live if current mortality rates continue to apply."), 
+           caption =  "Data Source: https://ourworldindata.org") 
+```
+
+```{r, echo = FALSE, fig.width=12, fig.height=12, out.width='100%'}
+require(knitr)
+knitr::include_graphics(paste0(here::here(), "/img/bubblechart_HDI.png"))
+```
+
+# Referecias
+
+Bastian Herre and Pablo Arriagada (2023) - “The Human Development Index and related indices: what they are and what we can learn from them” Published online at OurWorldInData.org. Retrieved from: '<https://ourworldindata.org/human-development-index>' [Online Resource]  
+
+Data, O. W. in, & Roser, M. (2024). OWID Homepage. Our World in Data. https://ourworldindata.org   
+
+```{r, collapse=FALSE}
+sesion_info <- devtools::session_info()
+```
+
+```{r, echo = FALSE}
+kable(dplyr::select(tibble::as_tibble(sesion_info$packages %>% dplyr::filter(attached == TRUE)),
+                    c(package, loadedversion, source))) %>%
+   kable_classic(full_width = TRUE, html_font = "montserrat", font_size = 10) 
+```
+
+<a rel="license" href="http://creativecommons.org/licenses/by/4.0/"><img src="https://i.creativecommons.org/l/by/4.0/88x31.png" alt="Creative Commons Licence" style="border-width:0"/></a><br />This work by [**Diana Villasana Ocampo**]{xmlns:cc="http://creativecommons.org/ns#" property="cc:attributionName"} is licensed under a <a rel="license" href="http://creativecommons.org/licenses/by/4.0/">Creative Commons Attribution 4.0 International License</a>.
