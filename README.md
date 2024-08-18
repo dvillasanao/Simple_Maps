@@ -34,3 +34,15 @@ leaflet, utilizando los datos del Banco Mundial.
 <img src="img/WorldMap_Leaflet.png" width="80%"> </a>
 </body>
 </html>
+
+### The Human Development Index and related indices
+
+**Enlace:**
+<https://dvillasanao.github.io/Simple_Maps/Output/01_WorldLeaflet.html>
+
+<html>
+<body>
+<a href = "https://dvillasanao.github.io/Simple_Maps/Output/01_WorldLeaflet.html" target="_blank">
+<img src="img/bubblechart_HDI.png" width="80%"> </a>
+</body>
+</html>
